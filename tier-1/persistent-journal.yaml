@@ -11,3 +11,5 @@ postprocess:
     [Journal]
     Storage=persistent
     EOF
+    # And this is a workaround for selinux policy denying the journal directory creation
+    sed -i -e 's,^z /var/log/journal,d /var/log/journal,' /usr/lib/tmpfiles.d/systemd.conf
