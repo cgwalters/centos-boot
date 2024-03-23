@@ -40,11 +40,16 @@ jobs:
         run: |
           podman build --security-opt=label=disable --cap-add=all --device /dev/fuse \
             -t localhost/${{ matrix.os }}-${{ matrix.version }}-bootc-wrapped -f Containerfile.${{ matrix.os }}-${{ matrix.version }}
+          #cat > Containerfile << EOF
+          #FROM quay.io/centos-bootc/centos-bootc:stream9
+          #RUN skopeo copy docker://quay.io/fedora/fedora:39 oci-archive:/nested.ociarchive
+          #EOF
+         # podman build -t localhost/${{ matrix.os }}-${{ matrix.version }}-bootc-wrapped .
 
       - name: Extract wrapped archive
         run: |
-          id=$(podman create --entrypoint=/none localhost/${{ matrix.os }}-${{ matrix.version }}-bootc-wrapped)
-          podman cp ${id}/nested.ociarchive .
+          id=$(podman create --log-level=debug --entrypoint=/none localhost/${{ matrix.os }}-${{ matrix.version }}-bootc-wrapped:latest)
+          podman cp ${id}:nested.ociarchive .
           skopeo copy oci-archive:nested.ociarchive containers-storage:localhost/${{ matrix.os }}-${{ matrix.version }}-bootc
 
       - name: Run image
