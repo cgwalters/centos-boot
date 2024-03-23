@@ -1,0 +1,34 @@
+# This container build will end up generating a *scratch* image
+# whose content is an .ociarchive of the real container.
+# 
+# This container build uses nested containerization, so you must build with e.g.
+# podman build --security-opt=label=disable --cap-add=all --device /dev/fuse <...>
+#
+# Once you have the desired image (e.g. localhost/c9s-bootc) you can then
+# extract the "wrapped" image however you like, among them:
+# 
+# id=$(podman create localhost/c9s-bootc)
+# podman cp ${id} /nested.ociarchive .
+# podman rm ${id}
+# 
+# Then you can e.g. `skopeo copy oci-archive:nested.ociarchive` to another place
+# such as containers-storage: (to run locally) or docker:// (to push to a remote registry).
+
+FROM quay.io/centos/centos:stream9 as repos
+
+FROM quay.io/centos-bootc/bootc-image-builder:latest as builder
+ARG VARIANT=centos
+COPY . /src
+WORKDIR /src
+COPY --from=repos /etc/dnf/vars /etc/dnf/vars
+COPY --from=repos /etc/yum.repos.d/centos.repo c9s.repo
+COPY --from=repos /etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial /etc/pki/rpm-gpg
+# rpm-ostree doesn't honor /etc/dnf/vars right now
+RUN for n in $(ls /etc/dnf/vars); do v=$(cat /etc/dnf/vars/$n); sed -ie s,\$${n},$v, c9s.repo; done
+RUN --mount=type=cache,target=/workdir rpm-ostree compose image --cachedir=/workdir --format=ociarchive --initialize ${VARIANT}-bootc.yaml ${VARIANT}-bootc.ociarchive
+
+FROM quay.io/centos/centos:stream9
+# Standardize on this name so it's easy to find/extract
+COPY --from=builder /src/*-bootc.ociarchive /nested.ociarchive
+# For convenience - if executed, we copy the oci-archive to stdout
+CMD cat /nested.ociarchive 
